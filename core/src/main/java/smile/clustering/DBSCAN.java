@@ -20,6 +20,9 @@ package smile.clustering;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
+
+import smile.data.DataFrame;
+import smile.data.Tuple;
 import smile.neighbor.Neighbor;
 import smile.neighbor.KDTree;
 import smile.neighbor.LinearSearch;
@@ -199,6 +202,84 @@ public class DBSCAN<T> extends PartitionClustering {
 
                             if (secondaryNeighbors.size() >= minPts) {
                                 for (Neighbor<T, T> sn : secondaryNeighbors) {
+                                    int label = y[sn.index];
+                                    if (label == UNDEFINED) {
+                                        y[sn.index] = QUEUED;
+                                    }
+
+                                    if (label == UNDEFINED || label == OUTLIER) {
+                                        neighbors.add(sn);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    k++;
+                }
+            }
+        }
+
+        return new DBSCAN<>(minPts, radius, nns, k, y);
+    }
+
+    /**
+     * Clustering the data.
+     * @param data the observations.
+     * @param nns the data structure for neighborhood search.
+     * @param minPts the minimum number of neighbors for a core data point.
+     * @param radius the neighborhood radius.
+     */
+    public static DBSCAN fit(DataFrame data, RNNSearch<Tuple,Tuple> nns, int minPts, double radius) {
+        if (minPts < 1) {
+            throw new IllegalArgumentException("Invalid minPts: " + minPts);
+        }
+
+        if (radius <= 0.0) {
+            throw new IllegalArgumentException("Invalid radius: " + radius);
+        }
+
+        // The label for data samples in BFS queue.
+        final int QUEUED = -2;
+        // The label for unclassified data samples.
+        final int UNDEFINED = -1;
+
+        int k = 0;
+        int n = data.nrows();
+        int[] y = new int[n];
+        Arrays.fill(y, UNDEFINED);
+
+        for (int i = 0; i < data.nrows(); i++) {
+            if (y[i] == UNDEFINED) {
+                List<Neighbor<Tuple,Tuple>> neighbors = new ArrayList<>();
+                nns.range(data.get(i), radius, neighbors);
+                if (neighbors.size() < minPts) {
+                    y[i] = OUTLIER;
+                } else {
+                    y[i] = k;
+
+                    for (Neighbor<Tuple, Tuple> neighbor : neighbors) {
+                        if (y[neighbor.index] == UNDEFINED) {
+                            y[neighbor.index] = QUEUED;
+                        }
+                    }
+
+                    for (int j = 0; j < neighbors.size(); j++) {
+                        Neighbor<Tuple,Tuple> neighbor = neighbors.get(j);
+                        int index = neighbor.index;
+
+                        if (y[index] == OUTLIER) {
+                            y[index] = k;
+                        }
+
+                        if (y[index] == UNDEFINED || y[index] == QUEUED) {
+                            y[index] = k;
+
+                            List<Neighbor<Tuple,Tuple>> secondaryNeighbors = new ArrayList<>();
+                            nns.range(neighbor.key, radius, secondaryNeighbors);
+
+                            if (secondaryNeighbors.size() >= minPts) {
+                                for (Neighbor<Tuple, Tuple> sn : secondaryNeighbors) {
                                     int label = y[sn.index];
                                     if (label == UNDEFINED) {
                                         y[sn.index] = QUEUED;
