@@ -13,6 +13,9 @@ import smile.data.type.StructField;
 import smile.data.type.StructType;
 import smile.util.Paths;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 
 public class TestDBScan {
@@ -29,7 +32,9 @@ public class TestDBScan {
             //   JSON json = new JSON().mode(JSON.Mode.MULTI_LINE);
             //   DataFrame df = json.read("/home/ometaxas/Projects/Smile/TestJava/test.json");
             // var df = Read.json("/home/ometaxas/Projects/Smile/TestJava/test.json");
-
+            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
+            LocalDateTime now = LocalDateTime.now();
+            System.out.println(dtf.format(now));
 
             var format = CSVFormat.DEFAULT.withFirstRecordAsHeader();
             StructType schema = DataTypes.struct(
@@ -47,20 +52,31 @@ public class TestDBScan {
             );
 
 
-            DataFrame acmtest = Read.csv("./demo/src/main/java/smile/demo/atypon_and/acmsmall.csv", format, schema);
-
-
-
+            DataFrame acmtest = Read.csv("./demo/src/main/java/smile/demo/atypon_and/acmbig.csv", format, schema);
             if (!schema.equals(acmtest.schema())) {
                 System.out.println(acmtest.schema().toString());
                 System.out.println(schema.toString());
             }
 
+            //RNNSearch<Tuple,Tuple> search = new AuthorPubNNSearch(acmtest);
+            //DBSCAN dbscan = DBSCAN.fit(acmtest, search, 2, 0.4);
 
-            RNNSearch<Tuple,Tuple> search = new AuthorPubNNSearch(acmtest);
+            var a = acmtest.stream().collect(java.util.stream.Collectors.groupingBy(row -> row.getString("soundex")));
 
-            DBSCAN dbscan = DBSCAN.fit(acmtest, search, 2, 0.4);
-            System.out.println(dbscan.toString());
+            for (String key : a.keySet()) {
+                DataFrame df = DataFrame.of(a.get(key));
+                RNNSearch<Tuple,Tuple> search = new AuthorPubNNSearch(df);
+                DBSCAN dbscan = DBSCAN.fit(df, search, 2, 0.4);
+                System.out.println(key);
+                System.out.println(dbscan.toString());
+
+            }
+
+            LocalDateTime nowEnd = LocalDateTime.now();
+            System.out.println(dtf.format(nowEnd));
+
+
+
 
         }
         catch(Exception e) {
